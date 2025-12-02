@@ -1,303 +1,386 @@
 #!/bin/bash
 
-echo "📡 CONFIGURANDO HOTSPOT FUNCIONAL + CAPTIVE PORTAL"
-echo "=================================================="
+echo "🔒 Iniciando Portal Cautivo - Limpieza Mejorada"
+echo "================================================"
+
+# Verificar permisos root
+if [ "$EUID" -ne 0 ]; then 
+    echo "❌ Ejecutar con: sudo ./config.sh"
+    exit 1
+fi
 
 # Configuración
-INTERFACE="wlp2s0"
-SSID="MiPortal"
+INTERNET_INTERFACE="wlp58s0"
+HOTSPOT_INTERFACE="wlp58s0_ap"
+SSID="MiPortalCaptivo"
 PASSWORD="portal123"
-GATEWAY_IP="192.168.4.1"
+GATEWAY_IP="192.168.100.1"
 SERVER_PORT="8000"
 
-# Función de limpieza
+# Función de limpieza MEJORADA
 cleanup() {
     echo ""
-    echo "🧹 Limpiando configuración..."
-    sudo pkill hostapd 2>/dev/null
-    sudo pkill dnsmasq 2>/dev/null
-    sudo pkill -f "python3 server_hotspot.py" 2>/dev/null
-    sudo systemctl restart NetworkManager 2>/dev/null
-    sudo systemctl restart systemd-resolved 2>/dev/null
+    echo "🧹 Limpiando configuración de forma agresiva..."
+    
+    # Matar procesos de forma más agresiva
+    pkill -9 hostapd 2>/dev/null
+    pkill -9 dnsmasq 2>/dev/null
+    pkill -9 -f "python3 server.py" 2>/dev/null
+    
+    # Esperar a que los procesos terminen
+    sleep 3
+    
+    # Limpiar reglas iptables
+    iptables -t nat -F 2>/dev/null
+    iptables -F 2>/dev/null
+    iptables -X 2>/dev/null
+    iptables -t nat -X 2>/dev/null
 
-    sudo iptables -t nat -F 2>/dev/null
-    sudo iptables -F 2>/dev/null
-    sudo pkill dnsmasq
-    sudo pkill hostapd
+    # Limpiar procesos residuales
+    sudo pkill -9 dnsmasq 2>/dev/null
+    sudo pkill -9 hostapd 2>/dev/null
+    
+    # 🔥 LIMPIEZA AGREGADA: Eliminar archivos temporales
     sudo rm -f /tmp/dnsmasq.log
     sudo rm -f /tmp/dhcp.leases
-
+    sudo rm -f /tmp/hostapd.log
+    sudo rm -f /tmp/dnsmasq_ap.conf
+    
+    # Crear archivos limpios
     sudo touch /tmp/dnsmasq.log
     sudo chmod 666 /tmp/dnsmasq.log
     sudo touch /tmp/dhcp.leases
     sudo chmod 666 /tmp/dhcp.leases
 
-    sudo ip addr flush dev $INTERFACE 2>/dev/null
-    sudo ip link set $INTERFACE down 2>/dev/null
-    sudo ip link set $INTERFACE up 2>/dev/null
-
-    echo "✅ Configuración limpiada"
+    # 🔥 LIMPIEZA MEJORADA de interfaz virtual
+    echo "🗑️  Eliminando interfaz virtual..."
+    ip link set $HOTSPOT_INTERFACE down 2>/dev/null
+    sleep 2
+    iw dev $HOTSPOT_INTERFACE del 2>/dev/null
+    sleep 2
+    
+    # Intentar múltiples veces si falla
+    if iw dev | grep -q $HOTSPOT_INTERFACE; then
+        echo "⚠️  Primera eliminación falló, intentando de nuevo..."
+        ip link set $HOTSPOT_INTERFACE down 2>/dev/null
+        iw dev $HOTSPOT_INTERFACE del 2>/dev/null
+        sleep 2
+    fi
+    
+    # Verificar eliminación
+    if iw dev | grep -q $HOTSPOT_INTERFACE; then
+        echo "❌ No se pudo eliminar la interfaz virtual"
+    else
+        echo "✅ Interfaz virtual eliminada"
+    fi
+    
+    # Restaurar NetworkManager
+    systemctl restart NetworkManager 2>/dev/null
+    sleep 2
+    
+    echo "✅ Configuración limpiada completamente"
+    exit 0
 }
 
-# Verificar que la interfaz soporta modo AP
-check_ap_support() {
-    echo "🔍 Verificando soporte de modo AP..."
-    if iw list | grep -A 10 "Supported interface modes" | grep -q "AP"; then
-        echo "✅ La interfaz $INTERFACE soporta modo AP"
+# 🔥 NUEVA FUNCIÓN: Limpieza inicial agresiva
+aggressive_cleanup() {
+    echo "[0/7] 🔥 Limpieza inicial agresiva..."
+    
+    # Matar todos los procesos relacionados
+    pkill -9 hostapd 2>/dev/null
+    pkill -9 dnsmasq 2>/dev/null
+    pkill -9 -f "python3 server.py" 2>/dev/null
+    
+    # Limpiar iptables completamente
+    iptables -t nat -F 2>/dev/null
+    iptables -F 2>/dev/null
+    iptables -X 2>/dev/null
+    iptables -t nat -X 2>/dev/null
+    
+    # Eliminar interfaz virtual de forma forzada
+    echo "🗑️  Eliminando interfaz virtual existente..."
+    ip link set $HOTSPOT_INTERFACE down 2>/dev/null
+    iw dev $HOTSPOT_INTERFACE del 2>/dev/null
+    
+    # Esperar y verificar
+    sleep 3
+    if iw dev | grep -q $HOTSPOT_INTERFACE; then
+        echo "⚠️  Interfaz aún existe, forzando eliminación..."
+        # Método alternativo
+        iw dev $HOTSPOT_INTERFACE del 2>/dev/null
+        sleep 2
+    fi
+    
+    # Limpiar archivos temporales
+    rm -f /tmp/dnsmasq.log /tmp/dhcp.leases /tmp/hostapd.log /tmp/dnsmasq_ap.conf
+    
+    echo "✅ Limpieza inicial completada"
+}
+
+# Configurar interfaz virtual MEJORADA
+setup_virtual_interface() {
+    echo "[1/7] Configurando interfaz virtual..."
+    
+    # 🔥 VERIFICAR SI LA INTERFAZ YA EXISTE
+    if iw dev | grep -q $HOTSPOT_INTERFACE; then
+        echo "⚠️  La interfaz virtual ya existe, eliminando..."
+        ip link set $HOTSPOT_INTERFACE down 2>/dev/null
+        iw dev $HOTSPOT_INTERFACE del 2>/dev/null
+        sleep 3
+    fi
+    
+    # Verificar que la interfaz principal esté activa
+    if ! ip link show $INTERNET_INTERFACE | grep -q "state UP"; then
+        echo "❌ La interfaz principal $INTERNET_INTERFACE no está activa"
+        echo "🔧 Activando interfaz principal..."
+        ip link set $INTERNET_INTERFACE up
+        sleep 3
+    fi
+    
+    # Crear interfaz virtual AP
+    echo "📡 Creando interfaz virtual $HOTSPOT_INTERFACE..."
+    if ! iw dev $INTERNET_INTERFACE interface add $HOTSPOT_INTERFACE type __ap; then
+        echo "❌ Error creando interfaz virtual"
+        echo "💡 Intentando método alternativo..."
+        # Método alternativo
+        iw phy `iw dev $INTERNET_INTERFACE info | grep wiphy | awk '{print $2}'` interface add $HOTSPOT_INTERFACE type __ap
+        if [ $? -ne 0 ]; then
+            echo "❌ Error crítico: No se puede crear la interfaz virtual"
+            exit 1
+        fi
+    fi
+    
+    sleep 3
+    
+    # Activar interfaz
+    echo "⚡ Activando interfaz virtual..."
+    ip link set dev $HOTSPOT_INTERFACE up
+    sleep 2
+    
+    # Verificar activación
+    if ip link show $HOTSPOT_INTERFACE | grep -q "state UP"; then
+        echo "✅ Interfaz virtual activada"
     else
-        echo "❌ La interfaz $INTERFACE NO soporta modo AP"
-        echo "   No puedes crear un hotspot con esta interfaz"
+        echo "⚠️  Interfaz virtual creada pero no se pudo activar completamente"
+    fi
+    
+    # Asignar IP
+    echo "🔢 Asignando IP $GATEWAY_IP/24..."
+    ip addr flush dev $HOTSPOT_INTERFACE 2>/dev/null
+    ip addr add $GATEWAY_IP/24 dev $HOTSPOT_INTERFACE
+    sleep 2
+    
+    # Verificar IP
+    if ip addr show $HOTSPOT_INTERFACE | grep -q "$GATEWAY_IP"; then
+        echo "✅ Interfaz configurada: $GATEWAY_IP/24"
+    else
+        echo "❌ Error: No se asignó la IP correctamente"
         exit 1
     fi
 }
 
-# Configurar interfaz de red para hotspot
-setup_network_hotspot() {
-    echo "🔧 Configurando interfaz para hotspot..."
+# Configurar NetworkManager para ignorar la interfaz virtual
+configure_network_manager() {
+    echo "[2/7] Configurando NetworkManager..."
     
-    # Detener NetworkManager
-    sudo systemctl stop NetworkManager 2>/dev/null
-    sleep 2
-    
-    # Limpiar configuración anterior
-    sudo ip addr flush dev $INTERFACE 2>/dev/null
-    sudo ip link set $INTERFACE down
-    
-    # Configurar IP estática para el hotspot
-    sudo ip addr add $GATEWAY_IP/24 dev $INTERFACE
-    sudo ip link set $INTERFACE up
-    
-    echo "✅ Interfaz configurada con IP: $GATEWAY_IP"
+    # Hacer que NetworkManager ignore la interfaz virtual
+    if command -v nmcli > /dev/null 2>&1; then
+        nmcli dev set $HOTSPOT_INTERFACE managed no 2>/dev/null
+        echo "✅ NetworkManager configurado para ignorar $HOTSPOT_INTERFACE"
+    else
+        echo "⚠️  nmcli no disponible, saltando configuración NetworkManager"
+    fi
 }
 
-# Configurar DNSMasq para DHCP y DNS
-setup_dnsmasq_hotspot() {
-    echo "🌐 Configurando DNSMasq (DHCP + DNS)..."
+# Configurar NAT y redirección
+setup_nat_redirect() {
+    echo "[3/7] Configurando NAT y redirección..."
     
-    # Crear configuración de dnsmasq
-    cat > /tmp/dnsmasq_hotspot.conf << EOF
-# Configuración para Hotspot
-interface=$INTERFACE
+    # Habilitar forwarding
+    echo 1 > /proc/sys/net/ipv4/ip_forward
+    
+    # # Limpiar reglas anteriores
+    # iptables -t nat -F 2>/dev/null
+    # iptables -F 2>/dev/null
+    
+    # # Configurar NAT
+    # iptables -t nat -A POSTROUTING -o $INTERNET_INTERFACE -j MASQUERADE
+    # iptables -A FORWARD -i $HOTSPOT_INTERFACE -o $INTERNET_INTERFACE -j ACCEPT
+    # iptables -A FORWARD -i $INTERNET_INTERFACE -o $HOTSPOT_INTERFACE -m state --state RELATED,ESTABLISHED -j ACCEPT
+    
+    # # Redirección para captive portal
+    # iptables -t nat -A PREROUTING -i $HOTSPOT_INTERFACE -p tcp --dport 80 -j REDIRECT --to-port $SERVER_PORT
+    # iptables -t nat -A PREROUTING -i $HOTSPOT_INTERFACE -p tcp --dport 443 -j REDIRECT --to-port $SERVER_PORT
+    
+    # echo "✅ NAT y redirección configurados"
+}
+
+# Configurar DNSMasq
+setup_dnsmasq() {
+    echo "[4/7] Iniciando servidor DHCP y DNS..."
+    
+    cat > /tmp/dnsmasq_ap.conf << EOF
+interface=$HOTSPOT_INTERFACE
 bind-interfaces
-
-# Servidor DHCP
-dhcp-range=192.168.4.10,192.168.4.100,255.255.255.0,24h
-dhcp-option=3,$GATEWAY_IP  # Gateway
-dhcp-option=6,$GATEWAY_IP  # DNS
-
-# Redirección DNS para captive portal
-address=/#/$GATEWAY_IP
-
-# Logs detallados
+dhcp-range=192.168.100.50,192.168.100.150,12h
+dhcp-option=3,$GATEWAY_IP
+dhcp-option=6,$GATEWAY_IP
+server= 8.8.8.8
+# address=/#/$GATEWAY_IP
 log-dhcp
-log-queries
-log-facility=/tmp/dnsmasq.log
-
-# Opciones adicionales para mejor funcionamiento
-dhcp-authoritative
-dhcp-leasefile=/tmp/dhcp.leases
+# log-queries
+# log-facility=/tmp/dnsmasq.log
+# dhcp-authoritative
+# dhcp-leasefile=/tmp/dhcp.leases
 EOF
 
-    # Detener cualquier dnsmasq previo
-    sudo pkill dnsmasq 2>/dev/null
+    dnsmasq -C /tmp/dnsmasq_ap.conf
     sleep 2
     
-    # Iniciar dnsmasq
-    sudo dnsmasq -C /tmp/dnsmasq_hotspot.conf --no-daemon &
-    DNSMASQ_PID=$!
-    
-    # Esperar a que dnsmasq inicie
-    sleep 3
-    if ps -p $DNSMASQ_PID > /dev/null; then
-        echo "✅ DNSMasq iniciado correctamente (PID: $DNSMASQ_PID)"
-        echo "   - Rango DHCP: 192.168.4.10 - 192.168.4.100"
-        echo "   - Gateway: $GATEWAY_IP"
-        echo "   - DNS: $GATEWAY_IP"
+    if pgrep dnsmasq > /dev/null; then
+        echo "✅ Servidor DHCP y DNS activo"
     else
-        echo "❌ Error: DNSMasq no se pudo iniciar"
-        echo "   Revisa los logs en /tmp/dnsmasq.log"
+        echo "❌ Error iniciando DHCP/DNS"
         exit 1
     fi
 }
 
-# Configurar HostAPd para el punto de acceso
+# Configurar HostAPd
 setup_hostapd() {
-    echo "📡 Configurando punto de acceso WiFi..."
+    echo "[5/7] Configurando Access Point..."
     
-    # Crear configuración de hostapd
-    sudo tee /etc/hostapd/hostapd.conf > /dev/null <<EOF
-# Configuración básica del punto de acceso
-interface=$INTERFACE
+    mkdir -p /etc/hostapd
+    cat > /etc/hostapd/hostapd.conf << EOF
+interface=$HOTSPOT_INTERFACE
 driver=nl80211
 ssid=$SSID
 hw_mode=g
 channel=6
-wmm_enabled=0
+wmm_enabled=1 #0
 macaddr_acl=0
 auth_algs=1
 ignore_broadcast_ssid=0
-
-# Configuración de seguridad WPA2
 wpa=2
 wpa_passphrase=$PASSWORD
 wpa_key_mgmt=WPA-PSK
 wpa_pairwise=TKIP
 rsn_pairwise=CCMP
-
-# Mejoras de rendimiento y compatibilidad
-max_num_sta=10
-logger_syslog=-1
-logger_syslog_level=2
-logger_stdout=-1
-logger_stdout_level=2
+# max_num_sta=10
 EOF
 
-    # Detener hostapd previo
-    sudo pkill hostapd 2>/dev/null
-    sleep 2
-    
-    # Iniciar hostapd en segundo plano con logs
-    sudo hostapd -B /etc/hostapd/hostapd.conf -f /tmp/hostapd.log
-    
-    # Esperar a que hostapd inicie
+    hostapd /etc/hostapd/hostapd.conf > /tmp/hostapd.log 2>&1 &
     sleep 5
+    
     if pgrep hostapd > /dev/null; then
-        echo "✅ HostAPd iniciado correctamente"
-        echo "   - SSID: $SSID"
-        echo "   - Canal: 6"
-        echo "   - Seguridad: WPA2"
+        echo "✅ Access Point iniciado - SSID: $SSID"
     else
-        echo "❌ Error: HostAPd no se pudo iniciar"
-        echo "   Revisa los logs en /tmp/hostapd.log"
+        echo "❌ Error iniciando AP"
+        echo "🔍 Últimas líneas del log:"
+        tail -10 /tmp/hostapd.log
         exit 1
     fi
 }
 
-# Configurar iptables para NAT y redirección
-setup_iptables_hotspot() {
-    echo "🔀 Configurando reglas de redirección y NAT..."
-    
-    # Limpiar reglas anteriores
-    sudo iptables -F
-    sudo iptables -t nat -F
-    sudo iptables -X
-    sudo iptables -t nat -X
-    
-    # Politicas por defecto
-    sudo iptables -P INPUT ACCEPT
-    sudo iptables -P FORWARD ACCEPT
-    sudo iptables -P OUTPUT ACCEPT
-    
-    # 1. NAT para el hotspot (MASQUERADE)
-    sudo iptables -t nat -A POSTROUTING -o $INTERFACE -j MASQUERADE
-    
-    # 2. Redirigir HTTP (80) al servidor del captive portal
-    sudo iptables -t nat -A PREROUTING -i $INTERFACE -p tcp --dport 80 -j DNAT --to-destination $GATEWAY_IP:$SERVER_PORT
-    
-    # 3. Redirigir HTTPS (443) al servidor del captive portal
-    sudo iptables -t nat -A PREROUTING -i $INTERFACE -p tcp --dport 443 -j DNAT --to-destination $GATEWAY_IP:$SERVER_PORT
-    
-    # 4. Redirigir DNS (53) al servidor DNS local
-    sudo iptables -t nat -A PREROUTING -i $INTERFACE -p udp --dport 53 -j DNAT --to-destination $GATEWAY_IP:53
-    
-    # 5. Permitir forward entre interfaces
-    sudo iptables -A FORWARD -i $INTERFACE -o $INTERFACE -j ACCEPT
-    
-    echo "✅ Reglas de iptables configuradas:"
-    echo "   - NAT activado"
-    echo "   - Redirección HTTP/HTTPS/DNS"
-    echo "   - Forwarding permitido"
-}
-
-# Verificar configuración completa
+# Verificar configuración
 verify_setup() {
+    echo "[6/7] Verificando configuración..."
     echo ""
-    echo "🔍 VERIFICANDO CONFIGURACIÓN COMPLETA"
-    echo "====================================="
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "🔍 ESTADO DEL SISTEMA"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
-    # Verificar procesos
-    echo "📊 Procesos activos:"
-    if pgrep hostapd > /dev/null; then
-        echo "   ✅ HostAPd: ACTIVO"
+    echo "📊 Procesos:"
+    pgrep hostapd > /dev/null && echo "   ✅ HostAPd: ACTIVO" || echo "   ❌ HostAPd: INACTIVO"
+    pgrep dnsmasq > /dev/null && echo "   ✅ DNSMasq: ACTIVO" || echo "   ❌ DNSMasq: INACTIVO"
+    
+    echo "🌐 Estado interfaz virtual:"
+    if iw dev | grep -q $HOTSPOT_INTERFACE; then
+        echo "   ✅ $HOTSPOT_INTERFACE: EXISTE"
+        ip addr show $HOTSPOT_INTERFACE | grep "inet" | sed 's/^/      /' || echo "      ❌ Sin IP configurada"
     else
-        echo "   ❌ HostAPd: INACTIVO"
+        echo "   ❌ $HOTSPOT_INTERFACE: NO EXISTE"
     fi
     
-    if pgrep dnsmasq > /dev/null; then
-        echo "   ✅ DNSMasq: ACTIVO"
-    else
-        echo "   ❌ DNSMasq: INACTIVO"
-    fi
-    
-    # Verificar IP de la interfaz
-    echo "🌐 Configuración de red:"
-    if ip addr show $INTERFACE | grep -q "192.168.4.1"; then
-        echo "   ✅ IP $GATEWAY_IP configurada en $INTERFACE"
-    else
-        echo "   ❌ IP NO configurada correctamente"
-    fi
-    
-    # Verificar reglas iptables
-    echo "🔀 Reglas de redirección:"
-    sudo iptables -t nat -L PREROUTING 2>/dev/null | grep -E "(80|443|53)" && \
-        echo "   ✅ Reglas de redirección activas" || \
-        echo "   ❌ Reglas de redirección faltantes"
-    
-    # Verificar que el servidor esté listo
-    echo "🐍 Servidor Python:"
-    if netstat -tulpn 2>/dev/null | grep ":8000" > /dev/null; then
-        echo "   ✅ Servidor escuchando en puerto 8000"
-    else
-        echo "   ⚠️  Servidor no escuchando (se iniciará después)"
-    fi
-    
-    echo "====================================="
+    echo "📡 WiFi: $SSID"
+    echo "🔑 Password: $PASSWORD" 
+    echo "🌐 Gateway: $GATEWAY_IP"
+    echo "🖥️  Portal: http://$GATEWAY_IP:$SERVER_PORT"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
 }
 
-# Información para el usuario
-show_instructions() {
-    echo ""
-    echo "🎯 HOTSPOT CAPTIVE PORTAL LISTO"
-    echo "==============================="
-    echo "📡 RED WIFI CREADA:"
-    echo "   - Nombre (SSID): $SSID"
-    echo "   - Contraseña: $PASSWORD"
-    echo "   - Seguridad: WPA2"
-    echo ""
-    echo "🌐 CONFIGURACIÓN DE RED:"
-    echo "   - Gateway: $GATEWAY_IP"
-    echo "   - Rango DHCP: 192.168.4.10 - 192.168.4.100"
-    echo "   - DNS: $GATEWAY_IP"
-    echo ""
-    echo "📱 PARA CONECTARSE:"
-    echo "1. Busca la red '$SSID' en tu teléfono"
-    echo "2. Conéctate con la contraseña '$PASSWORD'"
-    echo "3. Espera a que obtenga IP (debería ser 192.168.4.x)"
-    echo "4. Abre cualquier navegador y ve a cualquier página"
-    echo "5. Serás redirigido automáticamente al portal de login"
-    echo ""
-    echo "🔧 CREDENCIALES DE PRUEBA:"
-    echo "   Usuario: test"
-    echo "   Contraseña: test"
-    echo ""
-    echo "🚀 INICIANDO SERVIDOR CAPTIVE PORTAL..."
-    echo "Presiona Ctrl+C para detener todos los servicios"
-    echo "==============================="
+# Iniciar servidor web
+start_webserver() {
+    echo "[7/7] Iniciando servidor web..."
+    
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    cd "$SCRIPT_DIR"
+    
+    if [ -f "server.py" ]; then
+        echo "🚀 Ejecutando servidor..."
+        python3 server.py
+    else
+        echo "❌ No se encuentra server.py"
+        echo "Hotspot activo. Ejecuta manualmente: python3 server.py"
+        trap cleanup INT
+        while true; do sleep 60; done
+    fi
 }
 
-# Manejar Ctrl+C para limpiar
-trap cleanup EXIT
+# Bloquear la conexion para todos los cliente
+block_all() {
+    #Configura el portal cautivo para dispositivos conectados a la WiFi   
+    INTERNET_IFACE="wlp58s0"
+    LOCAL_IFACE="wlp58s0_ap"
 
-# Ejecutar configuración paso a paso
-echo "🚀 INICIANDO CONFIGURACIÓN..."
-check_ap_support
-setup_network_hotspot
-setup_dnsmasq_hotspot
+    # Limpiar reglas existentes
+    iptables -t nat -F
+
+    # Políticas por defecto: bloquear todo forwarding
+    iptables -P INPUT ACCEPT
+    iptables -P OUTPUT ACCEPT
+    iptables -P FORWARD DROP
+
+    #Permitir resolver DNS
+    iptables -A FORWARD -i "$LOCAL_IFACE" -o "$INTERNET_IFACE" -p udp --dport 53 -j ACCEPT
+    iptables -A FORWARD -i "$LOCAL_IFACE" -o "$INTERNET_IFACE" -p tcp --dport 53 -j ACCEPT
+
+    # NAT - permite que dispositivos compartan tu internet (después de autenticar)
+    iptables -t nat -A POSTROUTING -o $INTERNET_IFACE -j MASQUERADE
+
+    # PERMITIR acceso al servidor web del portal (puerto 8080)
+    iptables -A FORWARD -i $LOCAL_IFACE -p tcp --dport 8000 -j ACCEPT
+
+    #Hacer redireccionamiento
+    iptables -t nat -A PREROUTING -i "$LOCAL_IFACE" -p tcp --dport 80 -j REDIRECT --to-port 8000
+    iptables -t nat -A PREROUTING -i "$LOCAL_IFACE" -p tcp --dport 443 -j REDIRECT --to-port 8000
+
+    echo "Firewall configurado"
+}
+
+# Manejar Ctrl+C
+trap cleanup INT TERM EXIT
+
+# 🔥 EJECUCIÓN PRINCIPAL MEJORADA
+aggressive_cleanup
+setup_virtual_interface
+configure_network_manager
+setup_nat_redirect
+setup_dnsmasq
 setup_hostapd
-setup_iptables_hotspot
 sleep 3
 verify_setup
-show_instructions
 
-# Iniciar servidor captive portal
-python3 server.py
+echo "🎯 PORTAL CAUTIVO CONFIGURADO"
+echo "============================="
+echo "📱 Para probar:"
+echo "1. Conéctate a: $SSID"
+echo "2. Abre cualquier navegador"
+echo "3. Debe aparecer automáticamente el login"
+echo "4. Usa: test / test"
+echo ""
+echo "🚀 INICIANDO SERVIDOR..."
+echo "============================="
+
+block_all
+start_webserver

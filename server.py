@@ -2,13 +2,17 @@ import socket
 import sqlite3
 import hashlib
 import threading
+import subprocess
+import os
 from urllib.parse import parse_qs
 
 class HotspotServer:
     def __init__(self):
-        self.host = '192.168.4.1'  # IP del hotspot
+        self.host = '192.168.100.1'  # IP de la interfaz virtual
         self.port = 8000
+        self.liberated_clients = set()
         self.init_db()
+        self.scripts_dir = os.path.join(os.path.dirname(__file__), 'firewall')
     
     def init_db(self):
         conn = sqlite3.connect('usuarios.db')
@@ -17,7 +21,10 @@ class HotspotServer:
             CREATE TABLE IF NOT EXISTS usuarios (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL
+                password TEXT NOT NULL,
+                ip_address TEXT,                   
+                liberated INTEGER DEFAULT 0,         
+                login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP 
             )
         ''')
         cursor.execute("INSERT OR IGNORE INTO usuarios (username, password) VALUES (?, ?)", 
@@ -27,6 +34,61 @@ class HotspotServer:
     
     def hash_password(self, password):
         return hashlib.sha256(password.encode()).hexdigest()
+
+    def run_script(self, script_name, parameters=None):
+        script_path = os.path.join(self.scripts_dir, script_name)
+        
+        try:
+            if parameters:
+                command = [script_path] + parameters
+                result = subprocess.run(
+                    command, 
+                    check=True, 
+                    capture_output=True, 
+                    text=True
+                )
+            else:
+                result = subprocess.run(
+                    [script_path], 
+                    check=True, 
+                    capture_output=True, 
+                    text=True
+                )
+            
+            print(f"✅ {result.stdout.strip()}")
+            return True
+            
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Error ejecutando {script_name}: {e.stderr}")
+            return False
+
+
+    def unlock_client(self, client_ip):
+        return self.run_script('unlock.sh', [client_ip])
+
+    def verify_unlocked_client(self, client_ip):
+        """Verifica si un cliente ya está liberado"""
+        if client_ip in self.liberated_clients:
+            return True
+            
+        # Verificar en base de datos
+        try:
+            conn = sqlite3.connect('usuarios.db')
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT liberated FROM usuarios WHERE ip_address = ? AND liberated = 1",
+                (client_ip,)
+            )
+            resultado = cursor.fetchone()
+            conn.close()
+            
+            if resultado:
+                self.liberated_clients.add(client_ip)
+                return True
+        except:
+            pass
+            
+        return False
     
     def handle_request(self, conn, addr):
         try:
@@ -44,7 +106,6 @@ class HotspotServer:
             method = parts[0]
             path = parts[1]
             client_ip = addr[0]
-            
             
             if path == '/styles.css':
                 self.serve_file(conn, 'styles.css', 'text/css')
@@ -93,7 +154,6 @@ Content-Length: {len(response_body)}
             
             if path == '/register':
                 if self.registrar_usuario(username, password):
-                    # Mensaje de éxito debajo del formulario
                     return self.serve_html('portal.html').replace(
                         '<!-- MESSAGES -->', 
                         '<div class="alert success">✅ ¡Registro exitoso! Ahora puedes iniciar sesión.</div>'
@@ -104,9 +164,18 @@ Content-Length: {len(response_body)}
                         '<div class="alert error">❌ Usuario ya existe</div>'
                     )
             else:  # login
-                if self.verificar_login(username, password):
-                    return self.success_page(client_ip)
+                if self.verify_login(username, password):
+                    print(f"👤 Login exitoso: {username} desde {client_ip}")
+                    
+                    # # Liberar al cliente
+                    # liberation_success = self.liberar_cliente(client_ip)
+                    
+                    # if liberation_success:
+                    #     return self.success_page(client_ip)
+                    # else:
+                    #     return self.message_error("✅ Login exitoso, pero error al liberar acceso. Contacta al administrador.") + self.serve_html('portal.html')
                 else:
+                    print(f"❌ Login fallido: {username} desde {client_ip}")
                     return self.message_error("❌ Credenciales incorrectas") + self.serve_html('portal.html')
         
         return self.serve_html('portal.html')
@@ -125,7 +194,7 @@ Content-Length: {len(response_body)}
             </html>
             """
     
-    def registrar_usuario(self, username, password):
+    def register_user(self, username, password):
         try:
             conn = sqlite3.connect('usuarios.db')
             cursor = conn.cursor()
@@ -139,7 +208,7 @@ Content-Length: {len(response_body)}
         except:
             return False
     
-    def verificar_login(self, username, password):
+    def verify_login(self, username, password):
         try:
             conn = sqlite3.connect('usuarios.db')
             cursor = conn.cursor()
@@ -183,7 +252,7 @@ Content-Length: {len(response_body)}
         </html>
         """
     
-    def iniciar(self):
+    def start(self):
         print("🚀 SERVIDOR HOTSPOT INICIADO")
         print("============================")
         print(f"📡 Hotspot: MiPortalCaptivo")
@@ -207,4 +276,4 @@ Content-Length: {len(response_body)}
 
 if __name__ == "__main__":
     server = HotspotServer()
-    server.iniciar()
+    server.start()
