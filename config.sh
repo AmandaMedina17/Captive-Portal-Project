@@ -353,8 +353,9 @@ block_all() {
 
     #Hacer redireccionamiento
     iptables -t nat -A PREROUTING -i "$LOCAL_IFACE" -p tcp --dport 80 -j REDIRECT --to-port 8000
-    iptables -t nat -A PREROUTING -i "$LOCAL_IFACE" -p tcp --dport 443 -j REDIRECT --to-port 8000
+    # iptables -t nat -A PREROUTING -i "$LOCAL_IFACE" -p tcp --dport 443 -j REDIRECT --to-port 8000
 
+    # iptables -A FORWARD -i "$INTERNET_IFACE" -o "$LOCAL_IFACE" -m state --state RELATED,ESTABLISHED -j ACCEPT
     echo "Firewall configurado"
 }
 

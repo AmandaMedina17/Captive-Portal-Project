@@ -12,7 +12,7 @@ class HotspotServer:
         self.port = 8000
         self.liberated_clients = set()
         self.init_db()
-        self.scripts_dir = os.path.join(os.path.dirname(__file__), 'firewall')
+        self.scripts_dir = os.path.dirname(__file__)
     
     def init_db(self):
         conn = sqlite3.connect('usuarios.db')
@@ -64,7 +64,28 @@ class HotspotServer:
 
 
     def unlock_client(self, client_ip):
-        return self.run_script('unlock.sh', [client_ip])
+        """Ejecuta el script para desbloquear la IP del cliente"""
+        if client_ip in self.liberated_clients:
+            print(f"✅ Cliente {client_ip} ya estaba liberado")
+            return True
+            
+        print(f"🔓 Intentando liberar cliente: {client_ip}")
+        success = self.run_script('unlock.sh', [client_ip])
+        
+        if success:
+            self.liberated_clients.add(client_ip)
+            # Guardar en base de datos que está liberado
+            conn = sqlite3.connect('usuarios.db')
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE usuarios SET ip_address = ?, liberated = 1 WHERE username = ?",
+                (client_ip, self.get_username_by_ip(client_ip))
+            )
+            conn.commit()
+            conn.close()
+            print(f"✅ Cliente {client_ip} liberado y guardado en BD")
+        
+        return success
 
     def verify_unlocked_client(self, client_ip):
         """Verifica si un cliente ya está liberado"""
@@ -136,6 +157,15 @@ Content-Length: {len(response_body)}
             response = "HTTP/1.1 404 Not Found\r\n\r\nArchivo no encontrado"
             conn.sendall(response.encode())
     
+    def is_authenticated(self, client_ip):
+        """Verifica si el cliente tiene una sesión activa"""
+        # Implementa según tu sistema de sesiones
+        if hasattr(self, 'sessionsManager'):
+            return self.sessionsManager.is_authenticated(client_ip)
+        else:
+            # Implementación simple basada en IP
+            return client_ip in getattr(self, 'active_sessions', {})
+    
     def process_request(self, method, path, data, client_ip):
         if method == 'GET':
             if path == '/register':
@@ -143,7 +173,11 @@ Content-Length: {len(response_body)}
             elif path == '/success':
                 return self.success_page(client_ip)
             else:
-                return self.serve_html('portal.html')
+                if self.verify_unlocked_client(client_ip):
+                    print("esta autenticado y no lo voy a mandar a hacer nada")
+                    
+                else:
+                    return self.serve_html('portal.html')
         
         elif method == 'POST':
             body = data.split('\r\n\r\n')[1] if '\r\n\r\n' in data else ''
@@ -153,7 +187,7 @@ Content-Length: {len(response_body)}
             password = params.get('password', [''])[0]
             
             if path == '/register':
-                if self.registrar_usuario(username, password):
+                if self.register_user(username, password):
                     return self.serve_html('portal.html').replace(
                         '<!-- MESSAGES -->', 
                         '<div class="alert success">✅ ¡Registro exitoso! Ahora puedes iniciar sesión.</div>'
@@ -167,18 +201,33 @@ Content-Length: {len(response_body)}
                 if self.verify_login(username, password):
                     print(f"👤 Login exitoso: {username} desde {client_ip}")
                     
-                    # # Liberar al cliente
-                    # liberation_success = self.liberar_cliente(client_ip)
+                    # Liberar al cliente
+                    liberation_success = self.unlock_client(client_ip)
                     
-                    # if liberation_success:
-                    #     return self.success_page(client_ip)
-                    # else:
-                    #     return self.message_error("✅ Login exitoso, pero error al liberar acceso. Contacta al administrador.") + self.serve_html('portal.html')
+                    if liberation_success:
+                        return self.success_page(client_ip)
+                    else:
+                        return self.message_error("✅ Login exitoso, pero error al liberar acceso. Contacta al administrador.") + self.serve_html('portal.html')
                 else:
                     print(f"❌ Login fallido: {username} desde {client_ip}")
                     return self.message_error("❌ Credenciales incorrectas") + self.serve_html('portal.html')
         
         return self.serve_html('portal.html')
+    
+    def get_username_by_ip(self, ip):
+        """Obtiene el username por IP"""
+        try:
+            conn = sqlite3.connect('usuarios.db')
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT username FROM usuarios WHERE ip_address = ?",
+                (ip,)
+            )
+            result = cursor.fetchone()
+            conn.close()
+            return result[0] if result else None
+        except:
+            return None
     
     def serve_html(self, filename):
         try:

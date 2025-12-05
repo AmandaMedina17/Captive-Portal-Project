@@ -1,3 +1,4 @@
+#!/bin/bash
 # Desbloquea una IP específica 
 
 IP_USUARIO=$1
