@@ -157,15 +157,6 @@ Content-Length: {len(response_body)}
             response = "HTTP/1.1 404 Not Found\r\n\r\nArchivo no encontrado"
             conn.sendall(response.encode())
     
-    def is_authenticated(self, client_ip):
-        """Verifica si el cliente tiene una sesión activa"""
-        # Implementa según tu sistema de sesiones
-        if hasattr(self, 'sessionsManager'):
-            return self.sessionsManager.is_authenticated(client_ip)
-        else:
-            # Implementación simple basada en IP
-            return client_ip in getattr(self, 'active_sessions', {})
-    
     def process_request(self, method, path, data, client_ip):
         if method == 'GET':
             if path == '/register':
@@ -304,7 +295,7 @@ Content-Length: {len(response_body)}
     def start(self):
         print("🚀 SERVIDOR HOTSPOT INICIADO")
         print("============================")
-        print(f"📡 Hotspot: MiPortalCaptivo")
+        print(f"📡 Hotspot: MiPortalCautivo")
         print(f"🔗 IP: {self.host}:{self.port}")
         print("👂 Esperando conexiones...")
         

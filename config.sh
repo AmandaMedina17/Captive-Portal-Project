@@ -12,7 +12,7 @@ fi
 # Configuración
 INTERNET_INTERFACE="wlp58s0"
 HOTSPOT_INTERFACE="wlp58s0_ap"
-SSID="MiPortalCaptivo"
+SSID="MiPortalCautivo"
 PASSWORD="portal123"
 GATEWAY_IP="192.168.100.1"
 SERVER_PORT="8000"
@@ -199,20 +199,6 @@ setup_nat_redirect() {
     # Habilitar forwarding
     echo 1 > /proc/sys/net/ipv4/ip_forward
     
-    # # Limpiar reglas anteriores
-    # iptables -t nat -F 2>/dev/null
-    # iptables -F 2>/dev/null
-    
-    # # Configurar NAT
-    # iptables -t nat -A POSTROUTING -o $INTERNET_INTERFACE -j MASQUERADE
-    # iptables -A FORWARD -i $HOTSPOT_INTERFACE -o $INTERNET_INTERFACE -j ACCEPT
-    # iptables -A FORWARD -i $INTERNET_INTERFACE -o $HOTSPOT_INTERFACE -m state --state RELATED,ESTABLISHED -j ACCEPT
-    
-    # # Redirección para captive portal
-    # iptables -t nat -A PREROUTING -i $HOTSPOT_INTERFACE -p tcp --dport 80 -j REDIRECT --to-port $SERVER_PORT
-    # iptables -t nat -A PREROUTING -i $HOTSPOT_INTERFACE -p tcp --dport 443 -j REDIRECT --to-port $SERVER_PORT
-    
-    # echo "✅ NAT y redirección configurados"
 }
 
 # Configurar DNSMasq
@@ -348,12 +334,11 @@ block_all() {
     # NAT - permite que dispositivos compartan tu internet (después de autenticar)
     iptables -t nat -A POSTROUTING -o $INTERNET_IFACE -j MASQUERADE
 
-    # PERMITIR acceso al servidor web del portal (puerto 8080)
+    # PERMITIR acceso al servidor web del portal (puerto 8000)
     iptables -A FORWARD -i $LOCAL_IFACE -p tcp --dport 8000 -j ACCEPT
 
     #Hacer redireccionamiento
     iptables -t nat -A PREROUTING -i "$LOCAL_IFACE" -p tcp --dport 80 -j REDIRECT --to-port 8000
-    # iptables -t nat -A PREROUTING -i "$LOCAL_IFACE" -p tcp --dport 443 -j REDIRECT --to-port 8000
 
     # iptables -A FORWARD -i "$INTERNET_IFACE" -o "$LOCAL_IFACE" -m state --state RELATED,ESTABLISHED -j ACCEPT
     echo "Firewall configurado"

@@ -1,15 +1,20 @@
 #!/bin/bash
 # Desbloquea una IP específica 
 
-IP_USUARIO=$1
+USER_IP=$1
 
-if [ -z "$IP_USUARIO" ]; then
+if [ -z "$USER_IP" ]; then
     echo "Error: Se necesita la IP del usuario"
     exit 1
 fi
 
 # Permitir tráfico completo para esta IP
-iptables -I FORWARD -s $IP_USUARIO -j ACCEPT 
-iptables -I FORWARD -d $IP_USUARIO -j ACCEPT 
+iptables -I FORWARD -s $USER_IP -j ACCEPT 
+iptables -I FORWARD -d $USER_IP -j ACCEPT 
 
-echo "✅ Usuario $IP_USUARIO desbloqueado - Tiene internet completo"
+# Agregar excepción para que no sea redirigido
+iptables -t nat -I PREROUTING -s $USER_IP -p tcp --dport 80 -j ACCEPT
+
+echo "✅ Usuario $USER_IP desbloqueado - Tiene internet completo"
+echo "las reglas son"
+iptables -L FORWARD -n | grep $USER_IP
