@@ -61,50 +61,6 @@ Archivos de Soporte:
 
     usuarios.db - Base de datos SQLite de usuarios (generada automáticamente)
 
-🔧 Configuración
-Prerrequisitos:
-bash
-
-# Paquetes necesarios
-sudo apt-get update
-sudo apt-get install -y hostapd dnsmasq iptables python3 sqlite3
-
-# Verificar interfaz WiFi
-iwconfig
-
-Configuración Paso a Paso:
-
-    Clonar/Descargar los archivos del proyecto
-
-bash
-
-git clone <repositorio>
-cd portal-cautivo
-
-    Configurar el hotspot:
-
-bash
-
-# Dar permisos de ejecución
-chmod +x config.sh block.sh unlock.sh
-
-# Ejecutar configuración
-sudo ./config.sh
-
-    El script config.sh realiza:
-
-        Limpieza de configuraciones previas
-
-        Creación de interfaz virtual AP
-
-        Configuración de NAT y redirección
-
-        Inicio de servidores DHCP y DNS
-
-        Configuración del portal WiFi
-
-        Inicio del servidor web
-
 📡 Configuración de Red
 Parámetros por Defecto:
 
@@ -130,12 +86,18 @@ PASSWORD="portal123"                # Contraseña WiFi
 GATEWAY_IP="192.168.100.1"          # IP del portal
 
 🚀 Uso del Sistema
-1. Iniciar el Portal Cautivo:
+1. Configurar el hotspot:
+bash
+
+# Dar permisos de ejecución
+chmod +x config.sh block.sh unlock.sh
+
+2. Iniciar el Portal Cautivo:
 bash
 
 sudo ./config.sh
 
-2. Conectar Dispositivos:
+3. Conectar Dispositivos:
 
     Conectarse a la red WiFi MiPortalCautivo
 
@@ -143,15 +105,16 @@ sudo ./config.sh
 
     Será redirigido automáticamente al portal de autenticación
 
-3. Cuentas de Prueba:
+4. Cuentas de Prueba:
 
     Usuario: test
 
     Contraseña: test
 
-4. Registrar Nuevos Usuarios:
+5. Registrar Nuevos Usuarios:
 
 Desde el portal web, usar la pestaña "Registrarse"
+
 🔒 Características de Seguridad
 Detección de Suplantación:
 
@@ -188,19 +151,7 @@ Limitaciones:
 
     Solo funciona en sistemas Linux
 
-    No implementa HTTPS (requeriría certificados)
-
-Mejoras Futuras:
-
-    Implementar HTTPS con certificados autofirmados
-
-    Panel de administración para gestión de usuarios
-
-    Límites de ancho de banda por usuario
-
-    Sistema de vouchers temporales
-
-    Autenticación con redes sociales
+    No implementa HTTPS 
 
 👥 Flujo de Trabajo
 
@@ -215,7 +166,3 @@ Mejoras Futuras:
     Sesión activa → Timeout y verificación periódica
 
     Cierre de sesión → Bloqueo y limpieza
-Desarrollado por: [Tu Nombre]
-Asignatura: Redes de Computadoras / Seguridad Informática
-Institución: [Nombre de la Universidad]
-Año: 2024
