@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -34,7 +34,7 @@
             </form>
             
             <!-- Contenedor para mensajes de login -->
-            <div id="login-messages" class="messages-container"></div>
+            <!-- <div id="login-messages" class="messages-container"></div>
         </div>
         
         <div id="register" class="tab-content">
@@ -51,7 +51,7 @@
             </form>
             
             <!-- Contenedor para mensajes de registro -->
-            <div id="register-messages" class="messages-container"></div>
+            <!-- <div id="register-messages" class="messages-container"></div>
         </div>
         
     </div>
@@ -68,6 +68,108 @@
             document.getElementById(tabName).classList.add('active');
             event.currentTarget.classList.add('active');
         }
+    </script>
+</body>
+</html> --> --> -->
+
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MiPortalCaptivo</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🌐 Portal Cautivo</h1>
+        
+        <div class="session-info" style="text-align: center; margin-bottom: 15px; color: #666; font-size: 12px;">
+            ⏰ Las sesiones tienen una duración de 30 minutos
+        </div>
+
+        <div class="welcome-message">
+            <h3>¡Bienvenido!</h3>
+            <p>Para acceder a internet, por favor autentícate.</p>
+            <p style="font-size: 12px; color: #666; margin-top: 5px;">
+                Cada dispositivo debe tener su propia cuenta
+            </p>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab-btn active" onclick="openTab('login')">Iniciar Sesión</button>
+            <button class="tab-btn" onclick="openTab('register')">Registrarse</button>
+        </div>
+        
+        <div id="login" class="tab-content active">
+            <form action="/login" method="POST" id="loginForm">
+                <div class="form-group">
+                    <label for="username">Usuario:</label>
+                    <input type="text" id="username" name="username" required placeholder="Tu usuario">
+                </div>
+                <div class="form-group">
+                    <label for="password">Contraseña:</label>
+                    <input type="password" id="password" name="password" required placeholder="Tu contraseña">
+                </div>
+                <button type="submit" class="btn">Conectar a Internet</button>
+            </form>
+            
+            <!-- Contenedor para mensajes de login -->
+            <div id="login-messages" class="messages-container"></div>
+        </div>
+        
+        <div id="register" class="tab-content">
+            <form action="/register" method="POST" id="registerForm">
+                <div class="form-group">
+                    <label for="new_username">Nuevo Usuario:</label>
+                    <input type="text" id="new_username" name="username" required minlength="3" placeholder="Mínimo 3 caracteres">
+                </div>
+                <div class="form-group">
+                    <label for="new_password">Contraseña:</label>
+                    <input type="password" id="new_password" name="password" required minlength="4" placeholder="Mínimo 4 caracteres">
+                </div>
+                <div class="form-group">
+                    <p style="font-size: 11px; color: #666; margin-top: -5px;">
+                        ⚠️ No compartas tu cuenta con otros dispositivos
+                    </p>
+                </div>
+                <button type="submit" class="btn">📝 Crear Cuenta</button>
+            </form>
+            
+            <!-- Contenedor para mensajes de registro -->
+            <div id="register-messages" class="messages-container"></div>
+        </div>
+        
+        <div class="network-info">
+            <p style="font-size: 12px; color: #888;">
+                Seguridad: Cada IP es monitoreada para prevenir suplantación
+            </p>
+        </div>
+    </div>
+
+    <script>
+        function openTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            document.getElementById(tabName).classList.add('active');
+            event.currentTarget.classList.add('active');
+        }
+        
+        // Auto-redirigir si la sesión expira
+        setInterval(function() {
+            if (window.location.pathname !== '/') {
+                fetch('/').catch(() => {
+                    // Si hay error en la conexión, puede que la sesión haya expirado
+                    window.location.href = '/';
+                });
+            }
+        }, 60000); // Verificar cada minuto
     </script>
 </body>
 </html>

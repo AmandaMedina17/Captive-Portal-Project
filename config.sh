@@ -40,7 +40,7 @@ cleanup() {
     sudo pkill -9 dnsmasq 2>/dev/null
     sudo pkill -9 hostapd 2>/dev/null
     
-    # 🔥 LIMPIEZA AGREGADA: Eliminar archivos temporales
+    # Eliminar archivos temporales
     sudo rm -f /tmp/dnsmasq.log
     sudo rm -f /tmp/dhcp.leases
     sudo rm -f /tmp/hostapd.log
@@ -52,7 +52,7 @@ cleanup() {
     sudo touch /tmp/dhcp.leases
     sudo chmod 666 /tmp/dhcp.leases
 
-    # 🔥 LIMPIEZA MEJORADA de interfaz virtual
+    # Limpieza de interfaz virtual
     echo "🗑️  Eliminando interfaz virtual..."
     ip link set $HOTSPOT_INTERFACE down 2>/dev/null
     sleep 2
@@ -82,7 +82,7 @@ cleanup() {
     exit 0
 }
 
-# 🔥 NUEVA FUNCIÓN: Limpieza inicial agresiva
+# Limpieza inicial agresiva
 aggressive_cleanup() {
     echo "[0/7] 🔥 Limpieza inicial agresiva..."
     
@@ -117,7 +117,7 @@ aggressive_cleanup() {
     echo "✅ Limpieza inicial completada"
 }
 
-# Configurar interfaz virtual MEJORADA
+# Configurar interfaz virtual
 setup_virtual_interface() {
     echo "[1/7] Configurando interfaz virtual..."
     
@@ -198,6 +198,8 @@ setup_nat_redirect() {
     
     # Habilitar forwarding
     echo 1 > /proc/sys/net/ipv4/ip_forward
+
+    echo "✅ Nat configurado"
     
 }
 
@@ -340,14 +342,13 @@ block_all() {
     #Hacer redireccionamiento
     iptables -t nat -A PREROUTING -i "$LOCAL_IFACE" -p tcp --dport 80 -j REDIRECT --to-port 8000
 
-    # iptables -A FORWARD -i "$INTERNET_IFACE" -o "$LOCAL_IFACE" -m state --state RELATED,ESTABLISHED -j ACCEPT
     echo "Firewall configurado"
 }
 
 # Manejar Ctrl+C
 trap cleanup INT TERM EXIT
 
-# 🔥 EJECUCIÓN PRINCIPAL MEJORADA
+# EJECUCIÓN PRINCIPAL
 aggressive_cleanup
 setup_virtual_interface
 configure_network_manager
