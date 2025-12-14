@@ -319,7 +319,7 @@ input:focus {
             color: #333;
             font-weight: 600;
             display: inline-flex;
-            align-items: baseline; /* Alinea el texto con la base del indicador */
+            align-items: baseline;
             top:-4px;
         }
         

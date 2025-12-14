@@ -145,14 +145,16 @@ Content-Length: {len(response_body)}
             if path == '/register':
                 if self.auth_manager.register_user(username, password):
                     html = self.serve_html('portal.html')
-                    success_msg = '<div class="alert success">✅ ¡Registro exitoso! Ahora puedes iniciar sesión.</div>'
-                    return html.replace('<div id="login" class="tab-content active">', 
-                                       success_msg + '<div id="login" class="tab-content active">')
+                    html = self.inject_message(html, 
+                        '<div class="alert success">¡Registro exitoso!</div>',
+                        'register')
+                    return html
                 else:
                     html = self.serve_html('portal.html')
-                    error_msg = '<div class="alert error">❌ Usuario ya existe</div>'
-                    return html.replace('<div id="register" class="tab-content">', 
-                                       error_msg + '<div id="register" class="tab-content">')
+                    html = self.inject_message(html,
+                        '<div class="alert error">Usuario ya existe o error en el registro.</div>',
+                        'register')
+                    return html
             else:  # login
                 if self.auth_manager.verify_login(username, password):
                     print(f"👤 HotspotServer: Login exitoso: {username} desde {client_ip}")
@@ -164,16 +166,49 @@ Content-Length: {len(response_body)}
                         return self.success_page(client_ip)
                     else:
                         html = self.serve_html('portal.html')
-                        error_msg = '<div class="alert error">✅ Login exitoso, pero error al liberar acceso. Contacta al administrador.</div>'
-                        return error_msg + html
+                        html = self.inject_message(html,
+                            '<div class="alert error">✅ Login exitoso, pero error al liberar acceso. Contacta al administrador.</div>',
+                            'login')
+                        return html
                 else:
                     print(f"❌ HotspotServer: Login fallido: {username} desde {client_ip}")
                     html = self.serve_html('portal.html')
-                    error_msg = '<div class="alert error">❌ Credenciales incorrectas</div>'
-                    return error_msg + html
+                    html = self.inject_message(html,
+                        '<div class="alert error">Credenciales incorrectas. Inténtalo de nuevo.</div>',
+                            'login')
+                    return html        
         
         return self.serve_html('portal.html')
+    def inject_message(self, html, message, target):
+
+        if target == 'login':
+            # Reemplazar el contenido de login-messages
+            pattern = r'<div id="login-messages" class="messages-container">.*?</div>'
+            replacement = f'<div id="login-messages" class="messages-container">{message}</div>'
+            return re.sub(pattern, replacement, html, flags=re.DOTALL)
+        elif target == 'register':
+            # Reemplazar el contenido de register-messages
+            pattern = r'<div id="register-messages" class="messages-container">.*?</div>'
+            replacement = f'<div id="register-messages" class="messages-container">{message}</div>'
+            html = re.sub(pattern, replacement, html, flags=re.DOTALL)
+            # También necesitamos cambiar a la pestaña de registro
+            html = self.inject_script(html, "openTab('register');")
+            return html
+        return html
     
+
+    def inject_script(self, html, script_code):
+        script = f"""
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {{
+                {script_code}
+            }});
+        </script>
+        """
+        return html.replace('</body>', script + '</body>')
+    
+    
+
     def serve_html(self, filename):
         """Sirve archivos HTML"""
         try:
@@ -213,17 +248,21 @@ Content-Length: {len(response_body)}
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Acceso Concedido</title>
+            <title>Autenticación Exitosa</title>
             <link rel="stylesheet" href="/styles.css">
             <meta http-equiv="refresh" content="300;url=/status">
         </head>
         <body>
             <div class="container">
-                <div class="alert success">
-                    ✅ ¡Acceso concedido!
+                <div class="success-card">
+                   <div class="success-icon">✅</div>
+                    
+                    <h1 class="success-message">¡Autenticación Exitosa!</h1>
+                    
+                    <p>Ya puede conectarse a internet. Su acceso ha sido autorizado.</p>
+                    
                 </div>
                 <div class="dashboard">
-                    <h2>Bienvenido a MiPortalCaptivo</h2>
                     <p>Dispositivo: {client_ip}</p>
                     <p>Tiempo restante de sesión: {time_remaining}</p>
                     <p>Ahora tienes acceso completo a internet.</p>
