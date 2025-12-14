@@ -90,14 +90,16 @@ GATEWAY_IP="192.168.100.1"          # IP del portal
 1. Configurar el hotspot:
    
     bash
+   
     chmod +x config.sh block.sh unlock.sh
 
-2. Iniciar el Portal Cautivo:
+3. Iniciar el Portal Cautivo:
  
     bash
+   
     sudo ./config.sh
 
-3. Conectar Dispositivos:
+5. Conectar Dispositivos:
 
     Conectarse a la red WiFi MiPortalCautivo
 
@@ -105,13 +107,13 @@ GATEWAY_IP="192.168.100.1"          # IP del portal
 
     Será redirigido automáticamente al portal de autenticación
 
-4. Cuentas de Prueba:
+6. Cuentas de Prueba:
 
     Usuario: test
 
     Contraseña: test
 
-5. Registrar Nuevos Usuarios:
+7. Registrar Nuevos Usuarios:
 
     Desde el portal web, usar la pestaña "Registrarse"
 
@@ -143,8 +145,7 @@ Control de Firewall:
 
     Reglas dinámicas basadas en estado de sesión
 
-📝 Consideraciones Técnicas
-Limitaciones:
+📝 Consideraciones Técnicas:
 
     Requiere interfaz WiFi con soporte para modo AP
 
