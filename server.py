@@ -102,20 +102,26 @@ Content-Length: {len(response_body)}
             print(f"❌ HotspotServer Error en handle_request: {e}")
         finally:
             conn.close()
-    
+     
+       
     def serve_file(self, conn, filename, content_type):
         """Sirve archivos estáticos"""
         try:
-            with open(filename, 'r', encoding='utf-8') as f:
+            file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+            with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             response = f"HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\n\r\n{content}"
             conn.sendall(response.encode())
-        except:
+        except Exception as e:
+            print(f"❌ Error sirviendo archivo {filename}: {e}")
             response = "HTTP/1.1 404 Not Found\r\n\r\nArchivo no encontrado"
             conn.sendall(response.encode())
-    
+        
     def process_request(self, method, path, data, client_ip):
         """Procesa solicitudes HTTP"""
+        if path == '/styles.css':
+            return None 
+        
         # Verificar sesión activa
         if self.session_manager.verify_active_session(client_ip):
             if path == '/logout':
@@ -233,49 +239,202 @@ Content-Length: {len(response_body)}
         return f'<div class="alert error">{msg}</div>'
     
     def success_page(self, client_ip):
-        """Genera página de éxito"""
+        """Genera página de éxito """
         session_info = self.session_manager.get_session_info(client_ip)
         
         if session_info:
             remaining = session_info['remaining']
             minutes = int(remaining // 60)
             seconds = int(remaining % 60)
-            time_remaining = f"{minutes}:{seconds:02d} minutos"
+            time_remaining = f"{minutes}:{seconds:02d}"
         else:
-            time_remaining = "30 minutos"
+            time_remaining = "30:00"
         
         return f"""
         <!DOCTYPE html>
-        <html>
+        <html lang="es">
         <head>
-            <title>Autenticación Exitosa</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>✅ Acceso Concedido - MiPortalCaptivo</title>
             <link rel="stylesheet" href="/styles.css">
-            <meta http-equiv="refresh" content="300;url=/status">
+            <meta http-equiv="refresh" content="30;url=/status">
+            <style>
+                .success-container {{
+                    max-width: 400px;
+                    margin: 0 auto;
+                }}
+                
+                .success-icon-large {{
+                    font-size: 64px;
+                    text-align: center;
+                    margin: 20px 0;
+                    animation: pulse 2s infinite;
+                }}
+                
+                @keyframes pulse {{
+                    0% {{ transform: scale(1); }}
+                    50% {{ transform: scale(1.1); }}
+                    100% {{ transform: scale(1); }}
+                }}
+                
+                .status-card {{
+                    background: #f8f9fa;
+                    border-radius: 15px;
+                    padding: 20px;
+                    margin: 20px 0;
+                    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+                }}
+                
+                .status-item {{
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 10px 0;
+                    border-bottom: 1px solid #e1e5e9;
+                }}
+                
+                .status-item:last-child {{
+                    border-bottom: none;
+                }}
+                
+                .status-label {{
+                    font-weight: 600;
+                    color: #333;
+                }}
+                
+                .status-value {{
+                    font-weight: 700;
+                    color: #667eea;
+                    font-size: 16px;
+                }}
+                
+                .time-remaining {{
+                    font-size: 28px;
+                    font-weight: 700;
+                    color: #28a745;
+                    text-align: center;
+                    margin: 10px 0;
+                }}
+                
+                .time-label {{
+                    font-size: 14px;
+                    color: #666;
+                    text-align: center;
+                    margin-bottom: 20px;
+                }}
+                
+                .connection-status {{
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                }}
+                
+                .status-dot {{
+                    width: 10px;
+                    height: 10px;
+                    background-color: #28a745;
+                    border-radius: 50%;
+                    animation: blink 2s infinite;
+                }}
+                
+                @keyframes blink {{
+                    0%, 100% {{ opacity: 1; }}
+                    50% {{ opacity: 0.5; }}
+                }}
+                
+                .btn-logout {{
+                    width: 100%;
+                    margin-top: 20px;
+                }}
+            </style>
         </head>
         <body>
-            <div class="container">
-                <div class="success-card">
-                   <div class="success-icon">✅</div>
-                    
-                    <h1 class="success-message">¡Autenticación Exitosa!</h1>
-                    
-                    <p>Ya puede conectarse a internet. Su acceso ha sido autorizado.</p>
-                    
+            <div class="container success-container">
+                <h1>🌐 Portal Cautivo</h1>
+                
+                <div class="welcome-message">
+                    <div class="success-icon-large">✅</div>
+                    <h3>¡Acceso Concedido!</h3>
+                    <p>Ya tienes conexión a internet. Tu sesión está activa.</p>
                 </div>
-                <div class="dashboard">
-                    <p>Dispositivo: {client_ip}</p>
-                    <p>Tiempo restante de sesión: {time_remaining}</p>
-                    <p>Ahora tienes acceso completo a internet.</p>
-                    <div style="margin-top: 20px;">
-                        <a href="http://google.com" class="btn" style="margin-bottom: 10px;">Continuar navegando</a>
-                        <a href="/logout" class="btn" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);">Cerrar sesión</a>
+                
+                <div class="time-remaining">{time_remaining}</div>
+                <div class="time-label">minutos restantes</div>
+                
+                <div class="status-card">
+                    <div class="status-item">
+                        <span class="status-label">Dispositivo:</span>
+                        <span class="status-value">{client_ip}</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Estado:</span>
+                        <span class="connection-status">
+                            <span class="status-dot"></span>
+                            <span class="status-value">CONECTADO</span>
+                        </span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Sesión activa:</span>
+                        <span class="status-value">✓</span>
                     </div>
                 </div>
+                
+                <a href="/logout" class="btn btn-logout" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);">
+                    🚪 Cerrar sesión
+                </a>
+                
+                <div class="network-info">
+                    <p style="color: #666; font-size: 12px; margin-top: 20px; text-align: center;">
+                        ⏰ La sesión se renovará automáticamente.<br>
+                        ℹ️ Esta página se actualizará cada 30 segundos.
+                    </p>
+                </div>
             </div>
+            
+            <script>
+                // Actualizar el contador de tiempo cada minuto
+                function updateTimer() {{
+                    let timerElement = document.querySelector('.time-remaining');
+                    let timeParts = timerElement.textContent.split(':');
+                    let minutes = parseInt(timeParts[0]);
+                    let seconds = parseInt(timeParts[1]);
+                    
+                    if (seconds > 0) {{
+                        seconds--;
+                    }} else {{
+                        if (minutes > 0) {{
+                            minutes--;
+                            seconds = 59;
+                        }}
+                    }}
+                    
+                    // Si se acaba el tiempo, recargar para verificar estado
+                    if (minutes === 0 && seconds === 0) {{
+                        window.location.reload();
+                    }}
+                    
+                    timerElement.textContent = minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
+                }}
+                
+                // Iniciar el contador si hay tiempo válido
+                document.addEventListener('DOMContentLoaded', function() {{
+                    let timerElement = document.querySelector('.time-remaining');
+                    let timeText = timerElement.textContent;
+                    
+                    if (timeText.includes(':')) {{
+                        setInterval(updateTimer, 1000);
+                    }}
+                    
+                    // Mostrar notificación de conexión exitosa
+                    setTimeout(() => {{
+                        console.log('✅ Conexión establecida correctamente');
+                    }}, 1000);
+                }});
+            </script>
         </body>
         </html>
         """
-    
     def start(self):
         """Inicia el servidor"""
         print("🚀 SERVIDOR HOTSPOT INICIADO")
