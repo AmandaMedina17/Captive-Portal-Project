@@ -2,6 +2,7 @@ import socket
 import threading
 import subprocess
 import os
+import re
 from urllib.parse import parse_qs
 
 # Importar los managers
@@ -11,7 +12,7 @@ from firewall_manager import FirewallManager
 
 class HotspotServer:
     def __init__(self):
-        self.host = '192.168.100.1'
+        self.host = '192.168.100.1'  # IP de la interfaz virtual
         self.port = 8000
         self.scripts_dir = os.path.dirname(os.path.abspath(__file__))
         
