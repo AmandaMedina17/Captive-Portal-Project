@@ -85,17 +85,17 @@ SSID="MiPortalCautivo"              # Nombre de la red WiFi
 PASSWORD="portal123"                # Contraseña WiFi
 GATEWAY_IP="192.168.100.1"          # IP del portal
 
-🚀 Uso del Sistema
-1. Configurar el hotspot:
-bash
+🚀 Uso del Sistema:
 
-# Dar permisos de ejecución
-chmod +x config.sh block.sh unlock.sh
+1. Configurar el hotspot:
+   
+    bash
+    chmod +x config.sh block.sh unlock.sh
 
 2. Iniciar el Portal Cautivo:
-bash
-
-sudo ./config.sh
+ 
+    bash
+    sudo ./config.sh
 
 3. Conectar Dispositivos:
 
@@ -113,7 +113,8 @@ sudo ./config.sh
 
 5. Registrar Nuevos Usuarios:
 
-Desde el portal web, usar la pestaña "Registrarse"
+    Desde el portal web, usar la pestaña "Registrarse"
+
 
 🔒 Características de Seguridad
 Detección de Suplantación:
